@@ -39,10 +39,11 @@ exports.login = async (req, res) => {
 
         res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: true,           // Always true in production (HTTPS)
+            sameSite: 'none',       // Allow cross-origin cookies
             maxAge: 3600000
         });
+
 
         res.json({ user: { id: user._id, username: user.username, email: user.email } });
     } catch (error) {
