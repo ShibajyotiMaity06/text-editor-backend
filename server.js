@@ -4,35 +4,43 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { Server } = require('socket.io');
-
 const cookieParser = require('cookie-parser');
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+
+const allowedOrigins = ['http://localhost:5173', 'https://text-editor-gn54.vercel.app'];
+
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:5173',
+        origin: allowedOrigins,
         methods: ['GET', 'POST'],
         credentials: true
     },
 });
 
-
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: function (origin, callback) {
+        // Allow requests with no origin like mobile apps or curl requests
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     credentials: true
 }));
+
 app.use(express.json());
 app.use(cookieParser());
-
 
 mongoose
     .connect(process.env.MONGODB_URI)
     .then(() => console.log('MongoDB connected'))
     .catch((err) => console.error('MongoDB connection error:', err));
-
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/documents', require('./routes/documents'));
@@ -58,18 +66,15 @@ io.on('connection', (socket) => {
 
         console.log(`User ${userData.username} (${socket.id}) joined document ${documentId}`);
 
-
         userMap[socket.id] = { ...userData, documentId };
         if (!roomMap[documentId]) roomMap[documentId] = new Set();
         roomMap[documentId].add(socket.id);
-
 
         const activeUsers = Array.from(roomMap[documentId]).map(id => userMap[id]);
         io.to(documentId).emit('active-users', activeUsers);
     });
 
     socket.on('send-changes', (delta) => {
-
         socket.broadcast.to(delta.documentId).emit('receive-changes', delta);
     });
 
